@@ -2,6 +2,17 @@ name: Auto Release Build
 
 on:
   workflow_dispatch:
+    inputs:
+      service:
+        description: "The name of the service to build and release"
+        required: true
+        type: string
+      custom_tag:
+        description: "Custom tag version (e.g., 1.2.3). Leave empty for auto-increment."
+        required: false
+        type: string
+
+run-name: "Auto Release Build [${{ inputs.service }}] ${{ github.sha }}"
 
 jobs:
   release-build:
@@ -20,29 +31,38 @@ jobs:
       - name: Get latest tag and increment version
         id: version
         run: |
-          # Get the latest tag, default to 0.0.0 if no tags exist
-          latest_tag=$(git tag -l --sort=-version:refname | head -n1)
-
-          if [ -z "$latest_tag" ]; then
-            echo "No existing tags found, starting with 0.0.1"
-            new_version="0.0.1"
+          service_name="${{ inputs.service }}"
+          
+          # Check if custom tag is provided
+          if [ -n "${{ inputs.custom_tag }}" ]; then
+            echo "Using custom tag: ${{ inputs.custom_tag }}"
+            new_version="${{ inputs.custom_tag }}"
           else
-            echo "Latest tag: $latest_tag"
-            
-            # Extract version parts (assuming semver format)
-            IFS='.' read -ra VERSION_PARTS <<< "${latest_tag#v}"
-            major=${VERSION_PARTS[0]:-0}
-            minor=${VERSION_PARTS[1]:-0}
-            patch=${VERSION_PARTS[2]:-0}
-            
-            # Increment patch version
-            patch=$((patch + 1))
-            new_version="$major.$minor.$patch"
+            # Get the latest tag for this specific service
+            latest_tag=$(git tag -l "${service_name}-v*" --sort=-version:refname | head -n1)
+
+            if [ -z "$latest_tag" ]; then
+              echo "No existing tags found for service $service_name, starting with 0.0.1"
+              new_version="0.0.1"
+            else
+              echo "Latest tag for $service_name: $latest_tag"
+              
+              # Extract version parts (assuming format: service-v1.2.3)
+              version_part="${latest_tag#${service_name}-v}"
+              IFS='.' read -ra VERSION_PARTS <<< "$version_part"
+              major=${VERSION_PARTS[0]:-0}
+              minor=${VERSION_PARTS[1]:-0}
+              patch=${VERSION_PARTS[2]:-0}
+              
+              # Increment patch version
+              patch=$((patch + 1))
+              new_version="$major.$minor.$patch"
+            fi
           fi
 
           echo "New version: $new_version"
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
-          echo "tag=v$new_version" >> "$GITHUB_OUTPUT"
+          echo "tag=${service_name}-v$new_version" >> "$GITHUB_OUTPUT"
 
       - name: Create and push tag
         run: |
