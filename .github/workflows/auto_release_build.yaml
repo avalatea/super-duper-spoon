@@ -76,11 +76,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create ${{ steps.version.outputs.tag }} \
-            --title "Release ${{ steps.version.outputs.version }}" \
-            --notes "Auto-generated release ${{ steps.version.outputs.version }}
+            --title "${{ inputs.service }} ${{ steps.version.outputs.version }}" \
+            --notes "Auto-generated release for ${{ inputs.service }} v${{ steps.version.outputs.version }}
 
           Changes in this release:
-          - Auto-incremented from previous version
+          - Auto-incremented from previous version for service ${{ inputs.service }}
           - Built from commit ${{ github.sha }}"
 
       - name: Build (Placeholder)
