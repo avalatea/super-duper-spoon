@@ -1,0 +1,74 @@
+name: Auto Release Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  release-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get latest tag and increment version
+        id: version
+        run: |
+          # Get the latest tag, default to 0.0.0 if no tags exist
+          latest_tag=$(git tag -l --sort=-version:refname | head -n1)
+
+          if [ -z "$latest_tag" ]; then
+            echo "No existing tags found, starting with 0.0.1"
+            new_version="0.0.1"
+          else
+            echo "Latest tag: $latest_tag"
+            
+            # Extract version parts (assuming semver format)
+            IFS='.' read -ra VERSION_PARTS <<< "${latest_tag#v}"
+            major=${VERSION_PARTS[0]:-0}
+            minor=${VERSION_PARTS[1]:-0}
+            patch=${VERSION_PARTS[2]:-0}
+            
+            # Increment patch version
+            patch=$((patch + 1))
+            new_version="$major.$minor.$patch"
+          fi
+
+          echo "New version: $new_version"
+          echo "version=$new_version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}
+
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ steps.version.outputs.tag }} \
+            --title "Release ${{ steps.version.outputs.version }}" \
+            --notes "Auto-generated release ${{ steps.version.outputs.version }}
+
+          Changes in this release:
+          - Auto-incremented from previous version
+          - Built from commit ${{ github.sha }}"
+
+      - name: Build (Placeholder)
+        run: |
+          echo "Building version ${{ steps.version.outputs.version }}"
+          echo "This is where your actual build steps would go"
+          echo "For example:"
+          echo "  - npm install && npm run build"
+          echo "  - docker build -t myapp:${{ steps.version.outputs.version }} ."
+          echo "  - pytest"
+          echo "Build completed successfully!"
